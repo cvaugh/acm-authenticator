@@ -6,7 +6,8 @@ public class GuildSettings {
     public long id;
     public long adminRole = 0;
     public long unconfirmedRole = 0;
-    public long memberRole = 0;
+    public long confirmedRole = 0;
+    public long logChannel = 0;
 
     public void save() {
         try {

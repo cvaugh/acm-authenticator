@@ -49,7 +49,9 @@ public class Main {
                         .addOption(OptionType.ROLE, "unconfirmed-role",
                                 "After using /authenticate, users will be added to this role until they are confirmed",
                                 false).addOption(OptionType.ROLE, "member-role",
-                                "Users will be added to this role after they are confirmed", false),
+                                "Users will be added to this role after they are confirmed", false)
+                        .addOption(OptionType.CHANNEL, "log-channel",
+                                "Authentication commands will logged to this channel", false),
                 Commands.slash("adminrole", "Set which role can modify the bot's settings")
                         .addOption(OptionType.ROLE, "role",
                                 "Only users with this role or above will be able to modify the bot's settings",
