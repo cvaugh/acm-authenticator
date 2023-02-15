@@ -3,12 +3,14 @@ package dev.cvaugh.acmauthenticator;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.unions.GuildChannelUnion;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
@@ -181,7 +183,10 @@ public class DiscordListener extends ListenerAdapter {
                         member.getAsMention());
         eb.addField("Name", name, false);
         eb.addField("VSU Email", email, false);
-        eb.addField("Student ID", id, false);
+        eb.addField("Student ID", id, true);
+        eb.addBlankField(true);
+        eb.addField("Discord ID",
+                Long.toString(member.getIdLong(), Character.MAX_RADIX).toUpperCase(), true);
         eb.setThumbnail(member.getEffectiveAvatarUrl());
         channel.sendMessageEmbeds(eb.build()).setAllowedMentions(List.of())
                 .setActionRow(Button.success("confirm", "Confirm")).queue();
@@ -223,8 +228,8 @@ public class DiscordListener extends ListenerAdapter {
         EmbedBuilder eb = new EmbedBuilder();
         eb.setTitle("Confirmation Receipt");
         eb.setDescription("Created " + TimeFormat.RELATIVE.format(System.currentTimeMillis()));
-        eb.addField("User", member.getAsMention(), false);
-        eb.addField("Confirmed By", confirmer.getAsMention(), false);
+        eb.addField("User", member.getAsMention(), true);
+        eb.addField("Confirmed By", confirmer.getAsMention(), true);
         eb.setColor(0x3BA55C);
         channel.sendMessageEmbeds(eb.build()).setAllowedMentions(List.of()).queue();
     }
@@ -234,6 +239,34 @@ public class DiscordListener extends ListenerAdapter {
         Main.logger.info("Joined guild: {} (ID {})", event.getGuild().getName(),
                 event.getGuild().getIdLong());
         Guilds.put(event.getGuild().getIdLong());
+    }
+
+    @Override
+    public void onButtonInteraction(@NotNull ButtonInteractionEvent event) {
+        Guild guild = event.getGuild();
+        if(guild == null)
+            return;
+        String buttonId = event.getButton().getId();
+        if(buttonId == null)
+            return;
+        if(buttonId.equalsIgnoreCase("confirm")) {
+            List<MessageEmbed> embeds = event.getMessage().getEmbeds();
+            if(embeds.isEmpty())
+                return;
+            MessageEmbed.Field field =
+                    embeds.get(0).getFields().get(embeds.get(0).getFields().size() - 1);
+            if(field == null || field.getValue() == null)
+                return;
+            long userId = Long.valueOf(field.getValue(), Character.MAX_RADIX);
+            Member member = guild.getMemberById(userId);
+            if(member == null) {
+                event.reply("User not found").setEphemeral(true).queue();
+                return;
+            }
+            confirm(guild.getIdLong(), userId, event.getUser());
+            event.reply(member.getAsMention() + " has been confirmed").setEphemeral(true)
+                    .setAllowedMentions(List.of()).queue();
+        }
     }
 
     public static boolean isPermissionDenied(SlashCommandInteractionEvent event) {
