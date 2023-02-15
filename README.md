@@ -1,6 +1,9 @@
 # ACM Authenticator
 
 ## Commands
-| Command | Description |
-|---------|-------------|
-| `/`     |             | 
+
+| Command                                                                        | Description                                                                                                                                                                                                                                                                                                                                                      |
+|--------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `/authenticate <name> <email> <id>`                                            | Submit an authentication request with your name, VSU email, and student ID (870 number).                                                                                                                                                                                                                                                                         | 
+| `/authsettings <unconfirmed-role> <confirmed-role> <log-channel> <admin-role>` | `unconfirmed-role`: This role is assigned to users when they use `/authenticate`.<br/>`confirmed-role`: This role is assigned to users when their identity is confirmed.<br/>`log-channel`: Authentication requests are logged to this channel.<br/>`admin-role`: Only users with this role or above will be able to modify the bot's settings or confirm users. | 
+| `/confirm <user>`                                                              | Manually confirm a user.                                                                                                                                                                                                                                                                                                                                         |
