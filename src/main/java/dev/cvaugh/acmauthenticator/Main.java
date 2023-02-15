@@ -35,7 +35,6 @@ public class Main {
         }
         logger.debug("Building JDA instance");
         jda = JDABuilder.createDefault(Config.getBotToken())
-                .enableIntents(GatewayIntent.GUILD_MESSAGES, GatewayIntent.MESSAGE_CONTENT)
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .enableIntents(GatewayIntent.GUILD_MEMBERS).build();
         logger.debug("Registering commands");
