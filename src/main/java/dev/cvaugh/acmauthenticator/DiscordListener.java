@@ -1,4 +1,4 @@
-package dev.cvaugh.discordfilterbot;
+package dev.cvaugh.acmauthenticator;
 
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;

@@ -1,4 +1,4 @@
-package dev.cvaugh.discordfilterbot;
+package dev.cvaugh.acmauthenticator;
 
 import java.io.IOException;
 

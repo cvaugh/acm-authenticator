@@ -1,4 +1,4 @@
-package dev.cvaugh.discordfilterbot;
+package dev.cvaugh.acmauthenticator;
 
 public class Config {
     public static Config instance = new Config();

@@ -1,4 +1,4 @@
-package dev.cvaugh.discordfilterbot;
+package dev.cvaugh.acmauthenticator;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
