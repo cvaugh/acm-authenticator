@@ -15,11 +15,14 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.regex.Pattern;
 
 public class Main {
     private static final File CONFIG_DIR = new File("botconfig");
     private static final File CONFIG_FILE = new File(CONFIG_DIR, "config.json");
     private static final File GUILDS_DIR = new File(CONFIG_DIR, "guilds");
+    public static final Pattern VSU_EMAIL_PATTERN = Pattern.compile("^(.+)@valdosta\\.edu$");
+    public static final Pattern STUDENT_ID_PATTERN = Pattern.compile("^870\\d{6}$");
     public static Logger logger;
     public static JDA jda;
     public static Gson gson;
@@ -43,18 +46,18 @@ public class Main {
                 Commands.slash("authenticate", "Authenticate yourself in the ACM Discord server.")
                         .addOption(OptionType.STRING, "name", "Your first and last name", true)
                         .addOption(OptionType.STRING, "email", "Your VSU email", true)
-                        .addOption(OptionType.STRING, "id", "Your student ID (870 number)"),
+                        .addOption(OptionType.STRING, "id", "Your student ID (870 number)", true),
                 Commands.slash("authsettings", "Change the bot's settings.")
                         .addOption(OptionType.ROLE, "unconfirmed-role",
                                 "After using /authenticate, users will be added to this role until they are confirmed",
-                                false).addOption(OptionType.ROLE, "member-role",
+                                false).addOption(OptionType.ROLE, "confirmed-role",
                                 "Users will be added to this role after they are confirmed", false)
                         .addOption(OptionType.CHANNEL, "log-channel",
-                                "Authentication commands will logged to this channel", false),
-                Commands.slash("adminrole", "Set which role can modify the bot's settings")
-                        .addOption(OptionType.ROLE, "role",
-                                "Only users with this role or above will be able to modify the bot's settings",
-                                true)).queue();
+                                "Authentication commands will logged to this channel", false)
+                        .addOption(OptionType.ROLE, "admin-role",
+                                "Set which role can modify the bot's settings", false),
+                Commands.slash("confirm", "Confirm a user's identity")
+                        .addOption(OptionType.USER, "user", "The user to confirm", true)).queue();
         logger.debug("Registering shutdown hook");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Saving guild settings");

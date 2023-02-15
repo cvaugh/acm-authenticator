@@ -1,5 +1,6 @@
 package dev.cvaugh.acmauthenticator;
 
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
@@ -11,9 +12,12 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.utils.TimeFormat;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
+import java.util.List;
 
 public class DiscordListener extends ListenerAdapter {
     @Override
@@ -38,9 +42,8 @@ public class DiscordListener extends ListenerAdapter {
         switch(event.getName()) {
         case "authenticate" -> {
             if(settings.logChannel == 0) {
-                event.reply(
-                                "The bot has not been configured. Please notify the server administrators.")
-                        .setEphemeral(true).queue();
+                event.reply("The bot has not yet been configured." +
+                        "Please notify the server administrators.").setEphemeral(true).queue();
                 return;
             }
             OptionMapping nameOption = event.getOption("name");
@@ -67,9 +70,8 @@ public class DiscordListener extends ListenerAdapter {
                     emailOption.getAsString(), idOption.getAsString())) {
                 event.reply("Your information has been submitted.").setEphemeral(true).queue();
             } else {
-                event.reply(
-                                "Something went wrong while submitting your information. Please try again.")
-                        .setEphemeral(true).queue();
+                event.reply("Something went wrong while submitting your information." +
+                        "Please try again.").setEphemeral(true).queue();
             }
         }
         case "authsettings" -> {
@@ -81,6 +83,7 @@ public class DiscordListener extends ListenerAdapter {
             OptionMapping unconfirmedOption = event.getOption("unconfirmed-role");
             OptionMapping confirmedOption = event.getOption("confirmed-role");
             OptionMapping logChannelOption = event.getOption("log-channel");
+            OptionMapping adminRoleOption = event.getOption("admin-role");
             String changes = "";
             if(unconfirmedOption != null) {
                 Role role = unconfirmedOption.getAsRole();
@@ -113,30 +116,39 @@ public class DiscordListener extends ListenerAdapter {
                 settings.logChannel = channel.getIdLong();
                 changes += "\nLog channel updated to " + channel.getAsMention();
             }
+            if(adminRoleOption != null) {
+                Role role = adminRoleOption.getAsRole();
+                if(role.isPublicRole()) {
+                    settings.adminRole = 0;
+                } else {
+                    settings.adminRole = role.getIdLong();
+                }
+                changes += "\nAdmin role updated to " + role.getAsMention();
+            }
             event.reply("**Authentication Settings:**" +
                             (changes.isEmpty() ? "Settings unchanged" : changes)).setEphemeral(true)
                     .queue();
         }
-        case "adminrole" -> {
+        case "confirm" -> {
             if(isPermissionDenied(event)) {
                 Main.logger.debug("SlashCommandInteractionEvent: [{}, {}, {}] (blocked)",
                         event.getName(), event.getGuild(), event.getUser());
                 return;
             }
-            OptionMapping option = event.getOption("role");
-            if(option != null) {
-                Role role = option.getAsRole();
-                if(role.isPublicRole()) {
-                    settings.adminRole = 0;
-                    event.reply("Admin role requirement removed").setEphemeral(true).queue();
-                } else {
-                    settings.adminRole = role.getIdLong();
-                    event.reply("Admin role updated to " + role.getAsMention()).setEphemeral(true)
-                            .queue();
-                }
-            } else {
-                event.reply("Failed to update role").setEphemeral(true).queue();
+            OptionMapping userOption = event.getOption("user");
+            if(userOption == null) {
+                event.reply("No user provided").setEphemeral(true).queue();
+                return;
             }
+            User user = userOption.getAsUser();
+            if(event.getGuild().getMemberById(user.getIdLong()) == null) {
+                event.reply(user.getAsMention() + " is not a member of this server")
+                        .setEphemeral(true).queue();
+                return;
+            }
+            confirm(event.getGuild().getIdLong(), user.getIdLong(), event.getUser());
+            event.reply(user.getAsMention() + " has been confirmed").setEphemeral(true)
+                    .setAllowedMentions(List.of()).queue();
         }
         default -> {}
         }
@@ -150,23 +162,42 @@ public class DiscordListener extends ListenerAdapter {
                 guild.getRoleById(settings.unconfirmedRole);
         guild.addRoleToMember(member,
                 unconfirmedRole == null ? guild.getPublicRole() : unconfirmedRole).queue();
-        // todo: validation
+        TextChannel channel = guild.getTextChannelById(settings.logChannel);
+        if(channel == null) {
+            Main.logger.info("Missing log channel in guild [{}]: [{}]", settings.id,
+                    settings.logChannel);
+            return false;
+        }
+
+        if(name.isBlank() || !Main.VSU_EMAIL_PATTERN.matcher(email).find() ||
+                !Main.STUDENT_ID_PATTERN.matcher(id).find()) {
+            return false;
+        }
+
+        EmbedBuilder eb = new EmbedBuilder();
+        eb.setTitle("Authentication Request");
+        eb.setDescription(
+                "Created " + TimeFormat.RELATIVE.format(System.currentTimeMillis()) + " by " +
+                        member.getAsMention());
+        eb.addField("Name", name, false);
+        eb.addField("VSU Email", email, false);
+        eb.addField("Student ID", id, false);
+        eb.setThumbnail(member.getEffectiveAvatarUrl());
+        channel.sendMessageEmbeds(eb.build()).setAllowedMentions(List.of())
+                .setActionRow(Button.success("confirm", "Confirm")).queue();
         return true;
     }
 
-    public static void confirm(long guildId, long userId) {
+    public static void confirm(long guildId, long userId, User confirmer) {
         Guild guild = Main.jda.getGuildById(guildId);
         if(guild == null) {
-            Main.logger.warn(
-                    String.format("Guild [%d] not found while confirming user [%d]", guildId,
-                            userId));
+            Main.logger.warn("Guild [{}] not found while confirming user [{}]", guildId, userId);
             return;
         }
         Member member = guild.getMemberById(userId);
         if(member == null) {
-            Main.logger.warn(
-                    String.format("Member [%d] not found while confirming user in guild [%d]",
-                            userId, guildId));
+            Main.logger.warn("Member [{}] not found while confirming user in guild [{}]", userId,
+                    guildId);
             return;
         }
         GuildSettings settings = Guilds.get(guildId);
@@ -180,9 +211,22 @@ public class DiscordListener extends ListenerAdapter {
                         confirmedRole == null ? guild.getPublicRole() : confirmedRole),
                 Collections.singletonList(
                         unconfirmedRole == null ? guild.getPublicRole() : unconfirmedRole)).queue();
-        Main.logger.info(String.format("Member \"%s#%s\" [%d] confirmed in guild \"%s\" [%d]",
+        Main.logger.info("Member \"{}#{}\" [{}] confirmed in guild \"{}\" [{}]",
                 member.getUser().getName(), member.getUser().getDiscriminator(), userId,
-                guild.getName(), guildId));
+                guild.getName(), guildId);
+        TextChannel channel = guild.getTextChannelById(settings.logChannel);
+        if(channel == null) {
+            Main.logger.info("Missing log channel in guild [{}]: [{}]", settings.id,
+                    settings.logChannel);
+            return;
+        }
+        EmbedBuilder eb = new EmbedBuilder();
+        eb.setTitle("Confirmation Receipt");
+        eb.setDescription("Created " + TimeFormat.RELATIVE.format(System.currentTimeMillis()));
+        eb.addField("User", member.getAsMention(), false);
+        eb.addField("Confirmed By", confirmer.getAsMention(), false);
+        eb.setColor(0x3BA55C);
+        channel.sendMessageEmbeds(eb.build()).setAllowedMentions(List.of()).queue();
     }
 
     @Override
