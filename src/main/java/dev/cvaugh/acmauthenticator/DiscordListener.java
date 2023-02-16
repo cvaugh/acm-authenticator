@@ -143,10 +143,18 @@ public class DiscordListener extends ListenerAdapter {
                 return;
             }
             User user = userOption.getAsUser();
-            if(event.getGuild().getMemberById(user.getIdLong()) == null) {
+            Member member = event.getGuild().getMemberById(user.getIdLong());
+            if(member == null) {
                 event.reply(user.getAsMention() + " is not a member of this server")
                         .setEphemeral(true).queue();
                 return;
+            }
+            for(Role role : member.getRoles()) {
+                if(role.getIdLong() == settings.confirmedRole) {
+                    event.reply(user.getAsMention() + " has already been confirmed")
+                            .setEphemeral(true).setAllowedMentions(List.of()).queue();
+                    return;
+                }
             }
             confirm(event.getGuild().getIdLong(), user.getIdLong(), event.getUser());
             event.reply(user.getAsMention() + " has been confirmed").setEphemeral(true)
@@ -262,6 +270,13 @@ public class DiscordListener extends ListenerAdapter {
             if(member == null) {
                 event.reply("User not found").setEphemeral(true).queue();
                 return;
+            }
+            for(Role role : member.getRoles()) {
+                if(role.getIdLong() == Guilds.get(guild.getIdLong()).confirmedRole) {
+                    event.reply(member.getAsMention() + " has already been confirmed")
+                            .setEphemeral(true).setAllowedMentions(List.of()).queue();
+                    return;
+                }
             }
             confirm(guild.getIdLong(), userId, event.getUser());
             event.reply(member.getAsMention() + " has been confirmed").setEphemeral(true)
