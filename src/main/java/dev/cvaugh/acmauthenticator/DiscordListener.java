@@ -9,8 +9,10 @@ import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.unions.GuildChannelUnion;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
+import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
@@ -38,8 +40,7 @@ public class DiscordListener extends ListenerAdapter {
     public void onSlashCommandInteraction(@NotNull SlashCommandInteractionEvent event) {
         Main.logger.debug("SlashCommandInteractionEvent: [{}, {}, {}]", event.getName(),
                 event.getGuild(), event.getUser());
-        if(event.getGuild() == null)
-            return;
+        if(event.getGuild() == null) return;
         GuildSettings settings = Guilds.get(event.getGuild().getIdLong());
         switch(event.getName()) {
         case "authenticate" -> {
@@ -77,7 +78,9 @@ public class DiscordListener extends ListenerAdapter {
             }
         }
         case "authsettings" -> {
-            if(isPermissionDenied(event)) {
+            if(isPermissionDenied(event.getGuild(), event.getUser())) {
+                event.reply("You do not have permission to use this command.").setEphemeral(true)
+                        .queue();
                 Main.logger.debug("SlashCommandInteractionEvent: [{}, {}, {}] (blocked)",
                         event.getName(), event.getGuild(), event.getUser());
                 return;
@@ -132,7 +135,9 @@ public class DiscordListener extends ListenerAdapter {
                     .queue();
         }
         case "confirm" -> {
-            if(isPermissionDenied(event)) {
+            if(isPermissionDenied(event.getGuild(), event.getUser())) {
+                event.reply("You do not have permission to use this command.").setEphemeral(true)
+                        .queue();
                 Main.logger.debug("SlashCommandInteractionEvent: [{}, {}, {}] (blocked)",
                         event.getName(), event.getGuild(), event.getUser());
                 return;
@@ -159,6 +164,27 @@ public class DiscordListener extends ListenerAdapter {
             confirm(event.getGuild().getIdLong(), user.getIdLong(), event.getUser());
             event.reply(user.getAsMention() + " has been confirmed").setEphemeral(true)
                     .setAllowedMentions(List.of()).queue();
+        }
+        case "welcome" -> {
+            if(settings.welcomeMessage == 0) {
+                event.reply("No welcome message has been set.").setEphemeral(true).queue();
+                return;
+            }
+            TextChannel channel =
+                    event.getGuild().getTextChannelById(settings.welcomeMessageChannel);
+            if(channel == null) {
+                settings.unsetWelcomeMessage();
+                event.reply("Welcome message not found. Maybe the channel was deleted?")
+                        .setEphemeral(true).queue();
+                return;
+            }
+            channel.retrieveMessageById(settings.welcomeMessage).queue((message) -> {
+                event.reply(message.getJumpUrl()).setEphemeral(true).queue();
+            }, (e) -> {
+                event.reply("Welcome message not found. Maybe it was deleted?").setEphemeral(true)
+                        .queue();
+                settings.unsetWelcomeMessage();
+            });
         }
         default -> {}
         }
@@ -252,19 +278,15 @@ public class DiscordListener extends ListenerAdapter {
     @Override
     public void onButtonInteraction(@NotNull ButtonInteractionEvent event) {
         Guild guild = event.getGuild();
-        if(guild == null)
-            return;
+        if(guild == null) return;
         String buttonId = event.getButton().getId();
-        if(buttonId == null)
-            return;
+        if(buttonId == null) return;
         if(buttonId.equalsIgnoreCase("confirm")) {
             List<MessageEmbed> embeds = event.getMessage().getEmbeds();
-            if(embeds.isEmpty())
-                return;
+            if(embeds.isEmpty()) return;
             MessageEmbed.Field field =
                     embeds.get(0).getFields().get(embeds.get(0).getFields().size() - 1);
-            if(field == null || field.getValue() == null)
-                return;
+            if(field == null || field.getValue() == null) return;
             long userId = Long.valueOf(field.getValue(), Character.MAX_RADIX);
             Member member = guild.getMemberById(userId);
             if(member == null) {
@@ -284,27 +306,56 @@ public class DiscordListener extends ListenerAdapter {
         }
     }
 
-    public static boolean isPermissionDenied(SlashCommandInteractionEvent event) {
-        Guild guild = event.getGuild();
-        if(guild == null)
-            return true;
-        User user = event.getUser();
-        if(user.getIdLong() == guild.getOwnerIdLong())
-            return false;
+    @Override
+    public void onMessageReceived(@NotNull MessageReceivedEvent event) {
+        if(!event.isFromGuild() || event.getMember() == null ||
+                event.getMessage().getReferencedMessage() == null) return;
+        if(isPermissionDenied(event.getGuild(), event.getMember().getUser())) {
+            Main.logger.debug("MessageReceivedEvent: [{}, {}] (blocked)", event.getGuild(),
+                    event.getMember());
+            return;
+        }
+        if(!event.getMessage().getContentRaw()
+                .equalsIgnoreCase("<@" + Main.jda.getSelfUser().getId() + "> welcome")) return;
+        GuildSettings settings = Guilds.get(event.getGuild().getIdLong());
+        settings.welcomeMessage = event.getMessage().getReferencedMessage().getIdLong();
+        settings.welcomeMessageChannel =
+                event.getMessage().getReferencedMessage().getChannel().getIdLong();
+        EmbedBuilder eb = new EmbedBuilder();
+        eb.setTitle("Welcome message updated");
+        eb.setDescription("This message will be sent to new members upon joining the server.");
+        eb.setColor(0x03A9F4);
+        event.getMessage().getReferencedMessage().replyEmbeds(eb.build()).queue();
+    }
+
+    @Override
+    public void onGuildMemberJoin(@NotNull GuildMemberJoinEvent event) {
+        GuildSettings settings = Guilds.get(event.getGuild().getIdLong());
+        if(settings.welcomeMessage == 0) return;
+        TextChannel channel = event.getGuild().getTextChannelById(settings.welcomeMessageChannel);
+        if(channel == null) {
+            settings.unsetWelcomeMessage();
+            return;
+        }
+        channel.retrieveMessageById(settings.welcomeMessage).queue((message) -> {
+            event.getMember().getUser().openPrivateChannel().queue((privateChannel) -> {
+                privateChannel.sendMessage(message.getContentRaw()).queue();
+            });
+        }, (e) -> settings.unsetWelcomeMessage());
+    }
+
+    public static boolean isPermissionDenied(Guild guild, User user) {
+        if(guild == null) return true;
+        if(user.getIdLong() == guild.getOwnerIdLong()) return false;
         GuildSettings settings = Guilds.get(guild.getIdLong());
-        if(settings.adminRole == 0)
-            return false;
+        if(settings.adminRole == 0) return false;
         Role required = guild.getRoleById(settings.adminRole);
         if(required == null) {
             settings.adminRole = 0;
             return false;
         }
         Member member = guild.getMemberById(user.getIdLong());
-        if(member == null)
-            return true;
-        if(member.getRoles().get(0).getPosition() >= required.getPosition())
-            return false;
-        event.reply("You do not have permission to use this command.").setEphemeral(true).queue();
-        return true;
+        if(member == null) return true;
+        return member.getRoles().get(0).getPosition() < required.getPosition();
     }
 }

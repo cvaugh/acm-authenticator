@@ -39,25 +39,27 @@ public class Main {
         logger.debug("Building JDA instance");
         jda = JDABuilder.createDefault(Config.getBotToken())
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
-                .enableIntents(GatewayIntent.GUILD_MEMBERS).build();
+                .enableIntents(GatewayIntent.GUILD_MEMBERS, GatewayIntent.MESSAGE_CONTENT).build();
         logger.debug("Registering commands");
         jda.addEventListener(new DiscordListener());
         jda.updateCommands().addCommands(
-                Commands.slash("authenticate", "Authenticate yourself in the ACM Discord server.")
-                        .addOption(OptionType.STRING, "name", "Your first and last name", true)
-                        .addOption(OptionType.STRING, "email", "Your VSU email", true)
-                        .addOption(OptionType.STRING, "id", "Your student ID (870 number)", true),
-                Commands.slash("authsettings", "Change the bot's settings.")
-                        .addOption(OptionType.ROLE, "unconfirmed-role",
-                                "After using /authenticate, users will be added to this role until they are confirmed",
-                                false).addOption(OptionType.ROLE, "confirmed-role",
-                                "Users will be added to this role after they are confirmed", false)
-                        .addOption(OptionType.CHANNEL, "log-channel",
-                                "Authentication commands will logged to this channel", false)
-                        .addOption(OptionType.ROLE, "admin-role",
-                                "Set which role can modify the bot's settings", false),
-                Commands.slash("confirm", "Confirm a user's identity")
-                        .addOption(OptionType.USER, "user", "The user to confirm", true)).queue();
+                        Commands.slash("authenticate", "Authenticate yourself in the ACM Discord server.")
+                                .addOption(OptionType.STRING, "name", "Your first and last name", true)
+                                .addOption(OptionType.STRING, "email", "Your VSU email", true)
+                                .addOption(OptionType.STRING, "id", "Your student ID (870 number)", true),
+                        Commands.slash("authsettings", "Change the bot's settings.")
+                                .addOption(OptionType.ROLE, "unconfirmed-role",
+                                        "After using /authenticate, users will be added to this role until they are confirmed",
+                                        false).addOption(OptionType.ROLE, "confirmed-role",
+                                        "Users will be added to this role after they are confirmed", false)
+                                .addOption(OptionType.CHANNEL, "log-channel",
+                                        "Authentication commands will logged to this channel", false)
+                                .addOption(OptionType.ROLE, "admin-role",
+                                        "Set which role can modify the bot's settings", false),
+                        Commands.slash("confirm", "Confirm a user's identity")
+                                .addOption(OptionType.USER, "user", "The user to confirm", true),
+                        Commands.slash("welcome", "View the current welcome message sent to new members"))
+                .queue();
         logger.debug("Registering shutdown hook");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Saving guild settings");
@@ -98,8 +100,7 @@ public class Main {
             System.exit(1);
         }
         File[] files = GUILDS_DIR.listFiles();
-        if(files == null)
-            return;
+        if(files == null) return;
         for(File file : files) {
             if(file.isDirectory()) {
                 logger.debug("Loading guild " + file.getName());

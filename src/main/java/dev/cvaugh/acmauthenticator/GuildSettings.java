@@ -8,6 +8,8 @@ public class GuildSettings {
     public long unconfirmedRole = 0;
     public long confirmedRole = 0;
     public long logChannel = 0;
+    public long welcomeMessage = 0;
+    public long welcomeMessageChannel = 0;
 
     public void save() {
         try {
@@ -15,5 +17,10 @@ public class GuildSettings {
         } catch(IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void unsetWelcomeMessage() {
+        welcomeMessage = 0;
+        welcomeMessageChannel = 0;
     }
 }
