@@ -219,8 +219,8 @@ public class DiscordListener extends ListenerAdapter {
         eb.addField("VSU Email", email, false);
         eb.addField("Student ID", id, true);
         eb.addBlankField(true);
-        eb.addField("Discord ID",
-                Long.toString(member.getIdLong(), Character.MAX_RADIX).toUpperCase(), true);
+        eb.addField("Discord Username", member.getUser().getName(), true);
+        eb.addField("Discord ID", Long.toString(member.getIdLong()), true);
         eb.setThumbnail(member.getEffectiveAvatarUrl());
         channel.sendMessageEmbeds(eb.build()).setAllowedMentions(List.of())
                 .setActionRow(Button.success("confirm", "Confirm")).queue();
@@ -287,7 +287,7 @@ public class DiscordListener extends ListenerAdapter {
             MessageEmbed.Field field =
                     embeds.get(0).getFields().get(embeds.get(0).getFields().size() - 1);
             if(field == null || field.getValue() == null) return;
-            long userId = Long.valueOf(field.getValue(), Character.MAX_RADIX);
+            long userId = Long.parseLong(field.getValue());
             Member member = guild.getMemberById(userId);
             if(member == null) {
                 event.reply("User not found").setEphemeral(true).queue();
